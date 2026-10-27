@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark light">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Imposter">
+  <meta name="format-detection" content="telephone=no">
+  <title>IMPOSTER · SAMIX</title>
+  <link rel="icon" type="image/png" href="assets/favicon-64.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <style>
+    /* Ladebildschirm: bewusst inline, damit er sofort sichtbar ist */
+    #splash { position: fixed; inset: 0; z-index: 1000; background: #000; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+      transition: opacity .35s ease, transform .35s ease; }
+    #splash.out { opacity: 0; transform: scale(1.03); pointer-events: none; }
+    #splash .sp-glow { position: absolute; width: 70vmin; height: 70vmin; max-width: 520px; max-height: 520px; border-radius: 50%;
+      background: radial-gradient(closest-side, rgba(255,255,255,.10), rgba(255,255,255,0)); animation: spGlow 3.2s ease-in-out infinite; }
+    #splash .sp-logo { position: relative; height: clamp(120px, 24vh, 190px); width: auto; aspect-ratio: 1248 / 1521; display: block; opacity: 0;
+      animation: spIn .7s cubic-bezier(.2,.8,.2,1) .05s forwards; user-select: none; -webkit-user-drag: none; }
+    #splash .sp-brand { position: relative; margin-top: 22px; font-size: 13px; font-weight: 600; letter-spacing: .34em; margin-right: -.34em; color: rgba(255,255,255,.62); text-align: center; opacity: 0; animation: spIn .7s ease .25s forwards; }
+    #splash .sp-ring { position: relative; margin-top: 34px; width: 30px; height: 30px; opacity: 0; animation: spIn .5s ease .4s forwards; }
+    #splash .sp-ring svg { width: 100%; height: 100%; animation: spSpin 1s linear infinite; }
+    #splash .sp-ring circle { fill: none; stroke-width: 2.4; }
+    #splash .sp-ring .tr { stroke: rgba(255,255,255,.14); }
+    #splash .sp-ring .ar { stroke: #fff; stroke-linecap: round; stroke-dasharray: 22 80; }
+    #splash .sp-foot { position: absolute; left: 0; right: 0; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); text-align: center; font-size: 11px; letter-spacing: .3em; color: rgba(255,255,255,.34); }
+    #splash .sp-err { display: none; position: relative; margin-top: 26px; padding: 0 28px; text-align: center; max-width: 360px; }
+    #splash .sp-err h2 { margin: 0 0 8px; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+    #splash .sp-err p { margin: 0 0 18px; font-size: 14.5px; line-height: 1.5; color: rgba(255,255,255,.66); }
+    #splash .sp-err button { appearance: none; border: 0; min-height: 50px; padding: 0 28px; border-radius: 15px; background: #fff; color: #000; font-size: 16.5px; font-weight: 650; cursor: pointer; font-family: inherit; }
+    #splash.failed .sp-ring { display: none; }
+    #splash.failed .sp-err { display: block; }
+    @keyframes spIn { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+    @keyframes spSpin { to { transform: rotate(360deg); } }
+    @keyframes spGlow { 0%,100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
+    @media (prefers-reduced-motion: reduce) { #splash .sp-ring svg, #splash .sp-glow { animation: none; } }
+  </style>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Ladebildschirm (SAMIX) -->
+  <div id="splash" role="status" aria-live="polite" aria-label="Yükleniyor">
+    <span class="sp-glow" aria-hidden="true"></span>
+    <img class="sp-logo" id="splashLogo" src="assets/samix-logo.png" width="1248" height="1521" alt="SAMIX" decoding="async">
+    <div class="sp-brand">GAMES · APPS · INNOVATION</div>
+    <div class="sp-ring" aria-hidden="true"><svg viewBox="0 0 32 32"><circle class="tr" cx="16" cy="16" r="12.5"/><circle class="ar" cx="16" cy="16" r="12.5"/></svg></div>
+    <div class="sp-err" id="splashErr">
+      <h2>Oyun yüklenemedi</h2>
+      <p id="splashErrMsg">Bazı dosyalar yüklenemedi. İnternet bağlantınızı ve dosyaların eksiksiz olduğunu kontrol edin.</p>
+      <button type="button" id="splashRetry">Tekrar Dene</button>
+    </div>
+    <div class="sp-foot">CREATED BY SAMI</div>
+  </div>
+  <script>
+    /* Ladebildschirm-Steuerung: verschwindet, sobald das Spiel bereit ist – ohne künstliche Wartezeit.
+       Bei Fehlern oder nach 10 s ohne Start erscheint eine Fehlermeldung mit „Tekrar Dene“. */
+    (function () {
+      var el = document.getElementById("splash"), done = false, failed = false, timer;
+      function finish() {
+        if (done) return; done = true; clearTimeout(timer);
+        el.classList.add("out");
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 420);
+      }
+      function fail(msg) {
+        if (done) return; failed = true; clearTimeout(timer);
+        if (msg) document.getElementById("splashErrMsg").textContent = msg;
+        el.classList.add("failed"); el.setAttribute("aria-label", "Hata");
+      }
+      window.__samixReady = finish;
+      window.__samixFail = fail;
+      document.getElementById("splashRetry").addEventListener("click", function () { location.reload(); });
+      window.addEventListener("error", function (e) {
+        if (!done && !(e.target && e.target !== window && e.target.tagName === "IMG")) fail();
+      }, true);
+      var lg = document.getElementById("splashLogo");
+      lg.addEventListener("error", function () { lg.style.display = "none"; }); /* Logo fehlt: Spiel startet trotzdem */
+      timer = setTimeout(function () { if (!done) fail("Das Spiel braucht ungewöhnlich lange zum Laden. Bitte erneut versuchen."); }, 10000);
+    })();
+  </script>
+
+  <div class="bg" aria-hidden="true">
+    <span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span>
+  </div>
+  <main id="app" role="main"></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true"></div>
+  <noscript><div style="position:fixed;inset:0;z-index:2000;background:#000;color:#fff;display:grid;place-items:center;padding:24px;text-align:center;font-family:system-ui,sans-serif">Bu oyunun çalışması için JavaScript gereklidir.</div></noscript>
+
+  <script src="words.js" onerror="window.__samixFail&&window.__samixFail('words.js yüklenemedi.')"></script>
+  <script src="aciklamalar.js"></script>
+  <script src="logic.js" onerror="window.__samixFail&&window.__samixFail('logic.js yüklenemedi.')"></script>
+  <script src="app.js" onerror="window.__samixFail&&window.__samixFail('app.js yüklenemedi.')"></script>
+</body>
+</html>
